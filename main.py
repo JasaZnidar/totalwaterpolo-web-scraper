@@ -3,15 +3,17 @@ import requests
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 
 #=======================================
 # Open browser
 #=======================================
 options = Options()
-options.add_argument("--headless")
+#options.add_argument("--headless")
 chrome_service = Service(ChromeDriverManager().install())
 browser = Chrome(service=chrome_service, options=options)
 
@@ -39,7 +41,17 @@ for nation in home_result_national_column.findAll('li'):
 #=======================================
 for comp in competitions:
   browser.get(competitions[comp]['url'])
-  pass
+  
+  WebDriverWait(browser, 20).until(EC.presence_of_element_located((By.CLASS_NAME, "tw_competition_round")))
+  
+  comp_soup = BeautifulSoup(browser.page_source, "html.parser")
+  print(comp_soup.find(attrs={'tw_round_id': 'Round 10'}).prettify())
+  break
+  #for a in comp_soup.find('main').find('section').find_all(attrs={'class': 'mcb-wrap-inner'}):
+  #  print(a.prettify())
+  # wait in id bellow for class tw_info_text to load
+  print(comp_soup.find(attrs={'id': 'first_match_loader'}).prettify())
+  break
 
 
 #=======================================
