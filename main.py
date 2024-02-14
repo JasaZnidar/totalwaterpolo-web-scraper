@@ -9,6 +9,8 @@ from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 import json
 import re
+import time
+import datetime
 
 #===========================================
 # Variables and functions
@@ -16,10 +18,33 @@ import re
 home_url = "https://total-waterpolo.com"
 def match_url(id: int):
   return f"https://total-waterpolo.com/tw_match/{id}"
-data = {"competitions": []}
+data_file_name = "test.json"
+try:
+  with open(data_file_name, "r") as f:
+    data = json.load(f)
+except FileNotFoundError:
+  data = {
+    'players': {},
+    'matches': {}
+  }
 results_dropdown_id = "menu-item-99132"
-wait_time = [3.0, 0.5]
+wait_time = [7.0, 0.5]
 progress_bar = True
+none_players = 0
+number_of_players = 130
+try:
+  player_id_start = max([int(key) for key in data['players']]) + 1
+except ValueError:
+  player_id_start = 1
+player_id_limit = player_id_start + number_of_players
+player_id = player_id_start
+player_url = "https://total-waterpolo.com/tw_player"
+
+def progress():
+  comp_prog = int((player_id - player_id_start)*100 // number_of_players)
+  comp_perc = (player_id - player_id_start)*100 / number_of_players
+  if progress_bar:
+    print(f"Players [{player_id+1}]: |{'█' * comp_prog}{'-' * (100 - comp_prog)}| {comp_perc:.1f}% Complete", end="\r")
 
 
 #===========================================
@@ -31,6 +56,111 @@ options.add_argument("--log-level=3") # console log isn't printed
 chrome_service = Service(ChromeDriverManager().install())
 browser = Chrome(service=chrome_service, options=options)
 
+
+#===========================================
+# Find all players and their matches
+#===========================================
+progress()
+  
+for player_id in range(player_id_start, player_id_limit + 1):
+  try:
+    browser.get(f"{player_url}/{player_id}")
+  except TimeoutException:
+    # URL timed out
+    none_players += 1
+    progress()
+    continue
+  
+  try:
+    progress()
+    # wait a few seconds for player stats (position, hand, height, weight) to load
+    WebDriverWait(browser, wait_time[0]).until_not(EC.text_to_be_present_in_element((By.XPATH, '//*[@id="Wrapper"]/div[2]/div[2]/div[2]/div[1]/div/div[2]/div[2]'), "-"))
+    WebDriverWait(browser, wait_time[1]).until_not(EC.text_to_be_present_in_element((By.XPATH, '//*[@id="Wrapper"]/div[2]/div[2]/div[2]/div[2]/div/div[2]/div[2]'), "-"))
+    WebDriverWait(browser, wait_time[1]).until_not(EC.text_to_be_present_in_element((By.XPATH, '//*[@id="Wrapper"]/div[2]/div[2]/div[3]/div[1]/div/div[2]/div[2]'), "-"))
+    WebDriverWait(browser, wait_time[1]).until_not(EC.text_to_be_present_in_element((By.XPATH, '//*[@id="Wrapper"]/div[2]/div[2]/div[3]/div[2]/div/div[2]/div[2]'), "-"))
+  except TimeoutException:
+    # player has no statistics, probably not a player
+    none_players += 1
+    progress()
+    continue
+  
+  try:
+    num = [0, len(WebDriverWait(browser, wait_time[1]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_match_basic"))))]
+    while num[1] > num[0]:
+      num[0] = num[1]
+      num[1] = len(WebDriverWait(browser, wait_time[1]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_match_basic"))))
+  except TimeoutException:
+    # no recorded matches, check if player exists by finding player name
+    if BeautifulSoup(browser.page_source, "html.parser").find(attrs={'tw-data': 'name'}).text == "-":
+      # player doesn't exist
+      none_players += 1
+      progress()
+      continue
+
+  # get player data
+  player_soup = BeautifulSoup(browser.page_source, "html.parser")
+  
+  try:
+    player_position = player_soup.find(attrs={'tw-data': 'position'}).text
+  except AttributeError:
+    player_position = ''
+  try:
+    player_hand = player_soup.find(attrs={'tw-data': 'hand'}).text
+  except AttributeError:
+    player_hand = ''
+  try:
+    player_height = int(player_soup.find(attrs={'tw-data': 'height'}).text)
+  except ValueError:
+    player_height = None
+  try:
+    player_weight = int(player_soup.find(attrs={'tw-data': 'weight'}).text)
+  except ValueError:
+    player_weight = None
+  try:
+    player_birth = datetime.datetime.strptime(player_soup.find(attrs={'tw-data': 'birthday'}).text, "%d.%m.%Y")
+  except ValueError:
+    player_birth = None
+  except OverflowError:
+    print(f"Overflow error: {player_soup.find(attrs={'tw-data': 'birthday'}).text}")
+    player_birth = None
+    
+  
+  data['players'][str(player_id)] = {
+    'position': player_position,
+    'hand': player_hand,
+    'height': player_height,
+    'weight': player_weight,
+    'birth': player_birth
+  }
+  
+  # get matches id
+  try:
+    matches_soup = player_soup.find(attrs={'id': 'playerMatchesContainer'}).findChildren('div', recursive=False)
+  except AttributeError:
+    print("error finding matches")
+    progress()
+    continue
+  for match in matches_soup:
+    try:
+      if str(match['tw-match-id']) in data['matches']:
+        continue
+      
+      data['matches'][str(match['tw-match-id'])] = {
+        'competition id': match['tw-competition-id']
+      }
+    except KeyError:
+      print("match:", match.attrs)
+      break
+    
+  progress()
+
+print(f"\n\nplayers: {len(data['players'])}\nmatches: {len(data['matches'])}")
+
+with open(data_file_name, "w") as f:
+  json.dump(data, f, sort_keys=True, indent=4)
+
+browser.close()
+exit(0)
 
 #===========================================
 # Find all competitions on home page
@@ -60,7 +190,7 @@ for comp in range(len(data['competitions'])):
   if progress_bar:
     comp_prog = int(100 * comp // len(data['competitions']))
     comp_perc = comp/len(data['competitions']) * 100
-    print(f"Matches in competitons: |{'█' * comp_prog}{'-' * (100 - comp_prog)}| {comp_perc:.1f}% Complete", end="\r")
+    print(f"Players [{player_id+1:6}]: |{'█' * comp_prog}{'-' * (100 - comp_prog)}| {comp_perc:.1f}% Complete", end="\r")
   
   browser.get(data["competitions"][comp]['url'])
   try:
@@ -102,7 +232,7 @@ for comp in range(len(data['competitions'])):
     })
 
 if progress_bar:
-    print(f"Matches in competitons: |{'█' * 100}| 100.0% Complete")
+    print(f"Players [{player_id+1:6}]: |{'█' * 100}| 100.0% Complete")
 
 # Clear out none competitions
 none_comp.reverse()
@@ -251,7 +381,7 @@ if progress_bar:
 #===========================================
 # Save results
 #===========================================
-with open('data.json', 'w') as f:
+with open(data_file_name, "w") as f:
   json.dump(data, f, sort_keys=True, indent=4)
 
 
