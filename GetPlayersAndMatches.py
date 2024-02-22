@@ -54,6 +54,7 @@ def main(id = -1):
       num = player_id + 1
     else:
       num = player_id
+    
     if progress_bar:
       comp_prog = int((num - player_id_start)*100 // number_of_players)
       comp_perc = (num - player_id_start)*100 / number_of_players
@@ -166,9 +167,9 @@ def main(id = -1):
         print("match:", match.attrs)
         break
       
+    player_progress(True)
     data['last checked'] = player_id
     player_id += 1
-    player_progress(True)
 
   if progress_bar:
     print(f"\n\nplayers: {len(data['players'])}\nmatches: {len(data['matches'])}")

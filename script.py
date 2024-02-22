@@ -1,4 +1,4 @@
 import GetPlayersAndMatches
 
-for i in range(23):
+for i in range(70):
     GetPlayersAndMatches.main()
