@@ -60,7 +60,7 @@ def main():
       num[1] = len(WebDriverWait(browser, wait_time[1]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_play_by_play"))))
     match_soup = BeautifulSoup(browser.page_source, "html.parser")
     match_data = {
-      'competition id': data['matches'][match_id],
+      'competition id': data['matches'][match_id]['competition id'],
       'result': {
         'home': 0,
         'away': 0
@@ -93,7 +93,7 @@ def main():
       
       # full name
       first_player_id = match_soup.find(attrs={'id': f"{team}Players"}).find(attrs={'class': 'tw_match_player'}).find(attrs={'tw-data': 'playerName'})['onclick'].split("(")[1].split(")")[0]
-      match_data['name'][team] = match_soup.find(attrs={'id': "table_player_stats"}).find(lambda tag: first_player_id in tag.text).parent.find_all("td")[0]
+      match_data['name'][team] = match_soup.find(attrs={'id': "table_player_stats"}).find(lambda tag: first_player_id in tag.text).find_all("td")[0].text.strip()
     
       # short name
       shortName = match_soup.find(attrs={'tw-data': f"{team}teamname_short"}).text.lower()
