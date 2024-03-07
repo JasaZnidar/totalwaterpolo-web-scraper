@@ -6,10 +6,12 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 import json
 from constants import *
 import GetPlayersAndMatches
 import re
+import zipJSON
 
 data = {}
 
@@ -22,6 +24,7 @@ def main():
   progress_bar = True
   matches = 0
   match_id = "0"
+  id_to_del = []
   
   with open(data_file_name, "r") as f:
     data = json.load(f)
@@ -31,7 +34,7 @@ def main():
   
   def progress():
     if progress_bar:
-      comp_prog = int(matches // len(data['matches']))
+      comp_prog = int(matches*100 // len(data['matches']))
       comp_perc = matches*100 / len(data['matches'])
       print(f"Match [{match_id}]: |{'█' * comp_prog}{'-' * (100 - comp_prog)}| {comp_perc:.1f}% Complete", end="\r")
   
@@ -51,13 +54,25 @@ def main():
   #===========================================
   progress()
   for match_id in data['matches']:
+    
     progress()
     browser.get(match_url(match_id))
+    
+    # wait for player table to load
     WebDriverWait(browser, wait_time[0]).until(EC.presence_of_all_elements_located((By.ID, "table_player_stats")))
-    num = [0, len(WebDriverWait(browser, wait_time[0]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_play_by_play"))))]
-    while num[1] > num[0]:
-      num[0] = num[1]
-      num[1] = len(WebDriverWait(browser, wait_time[1]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_play_by_play"))))
+    
+    # wait for all plays
+    try:
+      num = [0, len(WebDriverWait(browser, wait_time[0]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_play_by_play"))))]
+      while num[1] > num[0]:
+        num[0] = num[1]
+        num[1] = len(WebDriverWait(browser, wait_time[1]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_play_by_play"))))
+    except TimeoutException:
+      # match has no data
+      id_to_del.append(match_id)
+      continue
+    
+    # get match soup
     match_soup = BeautifulSoup(browser.page_source, "html.parser")
     match_data = {
       'competition id': data['matches'][match_id]['competition id'],
@@ -89,11 +104,17 @@ def main():
     # team result, lineups and short team names
     for team in ["home", "away"]:
       # result
-      match_data['result'][team] = int(match_soup.find(attrs={'tw-data': f"{team}teamgoals"}).text)
+      try:
+        match_data['result'][team] = int(match_soup.find(attrs={'tw-data': f"{team}teamgoals"}).text)
+      except ValueError:
+        match_data['result'][team] = 0
       
       # full name
-      first_player_id = match_soup.find(attrs={'id': f"{team}Players"}).find(attrs={'class': 'tw_match_player'}).find(attrs={'tw-data': 'playerName'})['onclick'].split("(")[1].split(")")[0]
-      match_data['name'][team] = match_soup.find(attrs={'id': "table_player_stats"}).find(lambda tag: first_player_id in tag.text).find_all("td")[0].text.strip()
+      try:
+        first_player_id = match_soup.find(attrs={'id': f"{team}Players"}).find(attrs={'class': 'tw_match_player'}).find(attrs={'tw-data': 'playerName'})['onclick'].split("(")[1].split(")")[0]
+        match_data['name'][team] = match_soup.find(attrs={'id': "table_player_stats"}).find(lambda tag: first_player_id in tag.text).find_all("td")[0].text.strip()
+      except AttributeError:
+        match_data['name'][team] = ""
     
       # short name
       shortName = match_soup.find(attrs={'tw-data': f"{team}teamname_short"}).text.lower()
@@ -101,15 +122,22 @@ def main():
       
     # lineup
     for player in match_soup.find(attrs={'id': "table_player_stats"}).find_all("tr", recursive=False):
-      id = player.find_all("td")[2].text.strip()
-      match_data['lineup']['home' if player.find_all("td")[0] == match_data['name']['home'] else 'away'][player.find_all("td")[1].text.strip()] = {
-        'id': id
+      player_td = [stat.text.strip() for stat in player.find_all("td")]
+      id = player_td[2]
+      saves = player_td[-1]
+      team = 'home' if player_td[0] == match_data['name']['home'] else 'away'
+      #print(team, player_td)
+      match_data['lineup'][team][player_td[1]] = {
+        'id': id,
+        'saves': saves
       }
       
       if not id in data['players'].keys():
         print(f"Missing player with id {id}.", end="\r")
         GetPlayersAndMatches.main(int(id))
       
+    #print(json.dumps(match_data, sort_keys=True, indent=4))
+    
     # plays
     for play in match_soup.find_all(attrs={'class': 'tw_play_by_play'}):
       # play id
@@ -191,7 +219,7 @@ def main():
           'details': detail,
           'team': team,
           'player_1': player1,
-          'player_2': player2,  # can be 0
+          'player_2': player2,      # can be 0
           'location': location,     # [bottom, left] of class=tw_marker
           'target': target          # [bottom, left] of class=tw_marker
         })
@@ -201,6 +229,12 @@ def main():
     
     matches += 1
     progress()
+    
+  #===========================================
+  # Delete empty matches
+  #===========================================
+  for id in id_to_del:
+    del data['matches'][id]
   
   
   #===========================================
@@ -208,6 +242,8 @@ def main():
   #===========================================
   with open(data_file_name, "w") as f:
     json.dump(data, f, sort_keys=True, indent=4)
+  zipJSON.main()
+  
 
 
   #===========================================

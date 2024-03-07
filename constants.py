@@ -1,5 +1,5 @@
 data_file_name = "test.json"
-wait_time = [7.0, 0.5]
+wait_time = [10.0, 0.5]
 
 def days(date: str) -> int:
     since_year = 1870
