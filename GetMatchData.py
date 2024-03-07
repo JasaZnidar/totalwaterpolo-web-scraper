@@ -171,8 +171,7 @@ def main():
         detail = ""
       
       # shortened team name
-      teamName_short = play.find(attrs={'class': 'row'}).find(attrs={'tw-data': 'team'}).text.lower()
-      team = "home" if match_data['name']['short']['home'] == teamName_short else "away"
+      team = play.find(attrs={'tw-data': 'playerNum'})['class'][1]
       
       # players involved
       if not details_overview == None:
