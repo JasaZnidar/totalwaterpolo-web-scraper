@@ -54,12 +54,15 @@ def main():
   #===========================================
   progress()
   for match_id in data['matches']:
-    
     progress()
     browser.get(match_url(match_id))
     
     # wait for player table to load
-    WebDriverWait(browser, wait_time[0]).until(EC.presence_of_all_elements_located((By.ID, "table_player_stats")))
+    try:
+      WebDriverWait(browser, wait_time[0]).until(EC.presence_of_all_elements_located((By.ID, "table_player_stats")))
+    except TimeoutException as ex:
+      print()
+      raise ex
     
     # wait for all plays
     try:
@@ -82,11 +85,7 @@ def main():
       },
       'name': {
         'home': "",
-        'away': "",
-        'short': {
-          'home': "",
-          'away': ""
-        }
+        'away': ""
       },
       'lineup': {
         'home': {},
@@ -111,14 +110,22 @@ def main():
       
       # full name
       try:
-        first_player_id = match_soup.find(attrs={'id': f"{team}Players"}).find(attrs={'class': 'tw_match_player'}).find(attrs={'tw-data': 'playerName'})['onclick'].split("(")[1].split(")")[0]
-        match_data['name'][team] = match_soup.find(attrs={'id': "table_player_stats"}).find(lambda tag: first_player_id in tag.text).find_all("td")[0].text.strip()
+        try:
+          first_player_id = match_soup.find(attrs={'id': f"{team}Players"})
+          first_player_id = first_player_id.find(attrs={'class': 'tw_match_player'})
+          first_player_id = first_player_id.find(attrs={'tw-data': 'playerName'})
+          first_player_id = first_player_id['onclick'].split("(")[1].split(")")[0]
+          
+          team_name = match_soup.find(attrs={'id': "table_player_stats"})
+          team_name = team_name.find(lambda tag: first_player_id == tag.find_all("td")[2].text.strip(), recursive=False)
+          team_name = team_name.find_all("td")[0].text.strip()
+          match_data['name'][team] = team_name
+        except AttributeError:
+          # no players, try goalkeepers
+          first_goalkeeper = match_soup.find(attrs={'id': f"{team}Goalkeepers"}).find(attrs={'class': 'tw_match_player'}).find(attrs={'tw-data': 'playerName'}).text
+          match_data['name'][team] = match_soup.find(attrs={'id': "table_player_stats"}).find(lambda tag: first_goalkeeper in tag.text).find_all("td")[0].text.strip()
       except AttributeError:
         match_data['name'][team] = ""
-    
-      # short name
-      shortName = match_soup.find(attrs={'tw-data': f"{team}teamname_short"}).text.lower()
-      match_data['name']['short'][team] = shortName if not shortName == "-" else "null"
       
     # lineup
     for player in match_soup.find(attrs={'id': "table_player_stats"}).find_all("tr", recursive=False):

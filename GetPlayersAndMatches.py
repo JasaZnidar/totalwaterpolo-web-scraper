@@ -97,11 +97,12 @@ def main(id = -1):
       WebDriverWait(browser, wait_time[1]).until_not(EC.text_to_be_present_in_element((By.XPATH, "//*[@id=\"Wrapper\"]/div[2]/div[2]/div[3]/div[1]/div/div[2]/div[2]"), "-"))
       WebDriverWait(browser, wait_time[1]).until_not(EC.text_to_be_present_in_element((By.XPATH, "//*[@id=\"Wrapper\"]/div[2]/div[2]/div[3]/div[2]/div/div[2]/div[2]"), "-"))
     except TimeoutException:
-      # player has no statistics, probably not a player
-      data['last checked'] = player_id
-      player_id += 1
-      player_progress()
-      continue
+      if id == -1:
+        # player has no statistics, probably not a player
+        data['last checked'] = player_id
+        player_id += 1
+        player_progress()
+        continue
     
     try:
       num = [0, len(WebDriverWait(browser, wait_time[1]).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tw_match_basic"))))]
