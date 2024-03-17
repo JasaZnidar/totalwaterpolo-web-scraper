@@ -129,15 +129,15 @@ def main(id = -1):
     try:
       player_height = int(player_soup.find(attrs={'tw-data': "height"}).text)
     except ValueError:
-      player_height = None
+      player_height = 0
     try:
       player_weight = int(player_soup.find(attrs={'tw-data': "weight"}).text)
     except ValueError:
-      player_weight = None
+      player_weight = 0
     try:
       player_birth = days(player_soup.find(attrs={'tw-data': "birthday"}).text)
     except ValueError:
-      player_birth = None
+      player_birth = 0
       
     
     data['players'][str(player_id)] = {
