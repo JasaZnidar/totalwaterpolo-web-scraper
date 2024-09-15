@@ -131,12 +131,11 @@ def main():
     for player in match_soup.find(attrs={'id': "table_player_stats"}).find_all("tr", recursive=False):
       player_td = [stat.text.strip() for stat in player.find_all("td")]
       id = player_td[2]
-      saves = player_td[-1]
+      #saves = player_td[-1]
       team = 'home' if player_td[0] == match_data['name']['home'] else 'away'
       #print(team, player_td)
       match_data['lineup'][team][player_td[1]] = {
-        'id': id,
-        'saves': saves
+        'id': id
       }
       
       if not id in data['players'].keys():

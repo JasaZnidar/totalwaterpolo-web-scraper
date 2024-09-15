@@ -9,6 +9,7 @@ from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 import json
 from constants import *
+import os
 
 data = {}
 
@@ -21,20 +22,14 @@ def main(id = -1):
   try:
     with open(data_file_name, "r") as f:
       data = json.load(f)
-  except FileNotFoundError:
-    data = {
-      'players': {},
-      'matches': {},
-      "last checked": 0
-    }
-  except json.decoder.JSONDecodeError:
+  except FileNotFoundError or json.decoder.JSONDecodeError:
     data = {
       'players': {},
       'matches': {},
       "last checked": 0
     }
   progress_bar = True
-  number_of_players = 300
+  number_of_players = 50_000
   player_id_start = data['last checked'] + 1
   player_id_limit = player_id_start + number_of_players
   player_id = player_id_start
@@ -67,7 +62,10 @@ def main(id = -1):
   options = Options()
   options.add_argument("--headless")    # window doesn't pop up
   options.add_argument("--log-level=3") # console log isn't printed
-  chrome_service = Service(ChromeDriverManager().install())
+  chrome_install = ChromeDriverManager().install()
+  folder = os.path.dirname(chrome_install)
+  chrome_path = os.path.join(folder, "chromedriver.exe")
+  chrome_service = Service(chrome_path)
   browser = Chrome(service=chrome_service, options=options)
 
 

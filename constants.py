@@ -1,4 +1,4 @@
-data_file_name = "test.json"
+data_file_name = "data.json"
 wait_time = [10.0, 0.5]
 
 def days(date: str) -> int:
